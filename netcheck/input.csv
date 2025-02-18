@@ -1,0 +1,5 @@
+Google DNS,8.8.8.8,53
+Cloudflare DNS,1.1.1.1,53
+Google (HTTPS),www.google.com,443
+Example.org (HTTP),example.org,80
+hell.com (NUMBER),hell.com,666
