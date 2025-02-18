@@ -6,8 +6,7 @@ import sys
 
 def check_connectivity(host, port, timeout):
     """Attempt to connect to a given host and port within the specified timeout.
-
-    Returns True if connection succeeds, False otherwise.
+       Returns True if the connection succeeds, False otherwise.
     """
     try:
         with socket.create_connection((host, int(port)), timeout):
@@ -16,8 +15,11 @@ def check_connectivity(host, port, timeout):
         return False
 
 def main():
-    # Read the timeout from the environment or default to 10 seconds
-    timeout = float(os.environ.get("TIMEOUT", "10"))
+    # Two separate timeouts:
+    #  - TIMEOUT_OPEN   -> used if expected == "OPEN"   (defaults to 10s)
+    #  - TIMEOUT_CLOSED -> used if expected == "CLOSED" (defaults to 1s)
+    timeout_open = float(os.environ.get("TIMEOUT_OPEN", "10"))
+    timeout_closed = float(os.environ.get("TIMEOUT_CLOSED", "1"))
 
     input_file = "/netcheck/input.csv"
     
@@ -29,26 +31,38 @@ def main():
     with open(input_file, "r", newline="") as f:
         csv_reader = csv.reader(f)
 
-        # Optional: print CSV header
-        print("Description,Target,Port,Result", flush=True)
+        # Print heading (optional)
+        print("Description,Target,Port,Expected,TestResult", flush=True)
 
         for row in csv_reader:
+            # Skip invalid/empty lines
             if len(row) < 3:
-                # Skip invalid lines or handle as needed
                 continue
 
-            description, target, port = row[0], row[1], row[2]
+            description = row[0]
+            target      = row[1]
+            port        = row[2]
 
-            # Print partial line immediately (no newline yet)
-            # so the user sees which line is currently being processed.
-            print(f"{description},{target},{port},", end='', flush=True)
+            # If a 4th column (Expected) is given, read it; otherwise default to "OPEN"
+            expected = row[3].strip().upper() if len(row) >= 4 else "OPEN"
+            if expected not in ("OPEN", "CLOSED"):
+                expected = "OPEN"
 
-            # Attempt connectivity
-            success = check_connectivity(target, port, timeout)
-            status = "SUCCESS" if success else "FAILURE"
+            # Print partial line first, no newline yet
+            print(f"{description},{target},{port},{expected},", end='', flush=True)
 
-            # Print result with newline, also flushed immediately
-            print(status, flush=True)
+            # Determine which timeout to use
+            if expected == "OPEN":
+                is_open = check_connectivity(target, port, timeout_open)
+                test_result = "SUCCESS" if is_open else "FAILURE"
+            else:  # expected == "CLOSED"
+                # For "CLOSED", we only wait up to timeout_closed seconds
+                is_open = check_connectivity(target, port, timeout_closed)
+                # If connection fails, that means it's closed, so success
+                test_result = "FAILURE" if is_open else "SUCCESS"
+
+            # Print final status with newline
+            print(test_result, flush=True)
 
 if __name__ == "__main__":
     main()

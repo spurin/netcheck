@@ -1,7 +1,21 @@
 # Netcheck
 
-**Netcheck** is a simple container image that checks TCP connectivity to a list of targets specified in a CSV file.  
-For each line in the CSV, it attempts to connect on a given port and prints `SUCCESS` or `FAILURE`.
+**Netcheck** is a container-based tool that checks TCP connectivity for a list of host/port pairs.
+It reads a CSV file, attempts connections, and prints results in real time.
+
+Key features:
+
+- **Expected State** (`OPEN` or `CLOSED`):
+  - If expected is `OPEN`, the check passes only if a connection succeeds.
+  - If expected is `CLOSED`, the check passes only if a connection fails.
+  - If a row is missing or omits the 4th column, it defaults to `OPEN`.
+- **Real-Time Output**:
+  - Prints the CSV row (minus the final status) immediately.
+  - After the TCP check completes, appends `SUCCESS` or `FAILURE` on the same line.
+- **Timeout**:
+  - By default, each check is attempted with a timeout for `OPEN` or `CLOSED` ports
+  - Override the `OPEN` default of 10 seconds with the `TIMEOUT_OPEN` environment variable.
+  - Override the `CLOSED` default of 1 seconds with the `TIMEOUT_CLOSED` environment variable.
 
 ---
 
@@ -19,18 +33,27 @@ For each line in the CSV, it attempts to connect on a given port and prints `SUC
 
 ## Overview
 
-- **netcheck.py**:
-  - Reads `/netcheck/input.csv` by default.
-  - Each CSV line should have at least 3 fields: `Description, Target, Port`.
-  - Tries a TCP connection to each `Target:Port` within a specified `TIMEOUT`.
-  - Prints status in “real-time”:
-    - First prints `Description,Target,Port,` immediately.
-    - Then, after the check finishes, appends `SUCCESS` or `FAILURE`.
+Netcheck expects **4 columns** in each row of `/netcheck/input.csv`:
 
-- **Dockerfile**:
-  - Builds a minimal Python3 container.
-  - Copies the script and a sample `input.csv` into the image.
-  - Sets `TIMEOUT=10` by default (can be overridden).
+```
+Description,Target,Port,Expected
+```
+
+- **Description**: Arbitrary text (friendly name)
+- **Target**: A hostname or IP address
+- **Port**: TCP port number
+- **Expected**: Either `OPEN` or `CLOSED`
+  - If missing or invalid, defaults to `OPEN`.
+
+Example:
+
+```
+Google DNS,8.8.8.8,53
+Cloudflare DNS,1.1.1.1,53
+Google (HTTPS),www.google.com,443
+Example.org (HTTP),example.org,80
+hell.com (NUMBER),hell.com,666,CLOSED
+```
 
 ---
 
@@ -70,11 +93,11 @@ docker run --rm \
 
 ### Adjusting the Timeout
 
-By default, each check has a 10-second timeout. You can override this via the `TIMEOUT` environment variable:
+By default, each OPEN/CLOSED check has a unique timeout. You can override these via the `TIMEOUT_OPEN` and `TIMEOUT_CLOSED` environment variables:
 
 ```bash
 docker run --rm \
-  -e TIMEOUT=5 \
+  -e TIMEOUT_CLOSED=10 \
   spurin/netcheck:latest
 ```
 
@@ -90,12 +113,12 @@ When the container runs, it prints each line in two parts:
 Example:
 
 ```text
-Description,Target,Port,Result
-Google DNS,8.8.8.8,53,SUCCESS
-Cloudflare DNS,1.1.1.1,53,SUCCESS
-Google (HTTPS),www.google.com,443,SUCCESS
-Example.org (HTTP),example.org,80,SUCCESS
-hell.com (NUMBER),hell.com,666,FAILURE
+Description,Target,Port,Expected,TestResult
+Google DNS,8.8.8.8,53,OPEN,SUCCESS
+Cloudflare DNS,1.1.1.1,53,OPEN,SUCCESS
+Google (HTTPS),www.google.com,443,OPEN,SUCCESS
+Example.org (HTTP),example.org,80,OPEN,SUCCESS
+hell.com (NUMBER),hell.com,666,CLOSED,SUCCESS
 ```
 
 *(Exact results depend on your network and what’s reachable)*
